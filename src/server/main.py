@@ -245,7 +245,7 @@ async def lifespan(app: FastAPI):
 
 # === FastAPI приложение ===
 app = FastAPI(
-    title="Магнит Goods",
+    title="М.Косметик",
     description="Веб-сервер для выбора магазинов и мониторинга цен",
     version="0.1.0",
     lifespan=lifespan,

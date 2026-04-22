@@ -11,6 +11,10 @@
     "*": "ask",
     "bash": "allow",
     "read": "allow",
-    "edit": "allow"
+    "edit": "allow",
+    "playwright_browser_navigate": "allow",
+    "playwright_browser_click": "allow",
+    "playwright_browser_evaluate": "allow",
+    "playwright_browser_network_requests": "allow"
   }  
 }
