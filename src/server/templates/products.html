@@ -372,6 +372,8 @@ document.addEventListener('click', function(event) {
     const button = document.getElementById('categoryDropdownButton');
     if (dropdown && button && !dropdown.contains(event.target) && !button.contains(event.target)) {
         dropdown.style.display = 'none';
+        // Загружаем товары после закрытия dropdown
+        loadProducts();
     }
 });
 
@@ -441,6 +443,9 @@ function toggleCategoryCheckbox(checkbox) {
     updateSelectedCount();
     updateDropdownText();
     updateCheckboxes();
+    
+    // Загружаем товары с небольшой задержкой (debounce)
+    setTimeout(loadProducts, 300);
 }
 
 // Добавляем категорию и все её дочерние в выбранные
@@ -597,6 +602,7 @@ function selectAllCategories() {
     updateCheckboxes();
     updateSelectedCount();
     updateDropdownText();
+    setTimeout(loadProducts, 300);
 }
 
 // Снять все категории
@@ -605,7 +611,7 @@ function deselectAllCategories() {
     updateCheckboxes();
     updateSelectedCount();
     updateDropdownText();
-    document.getElementById('trackedOnly').checked = false;
+    setTimeout(loadProducts, 300);
 }
 
 // Обновление счетчика выбранных категорий
@@ -1429,10 +1435,17 @@ async function loadProductsEnhanced() {
     listDiv.innerHTML = '<p style="color: #666;">Загрузка...</p>';
 
     try {
-        // Получаем ID отслеживаемых категорий (только дочерние)
-        const trackedResp = await fetch('/api/categories?tracked=true');
-        const trackedCategories = await trackedResp.json();
-        const trackedCatIds = trackedCategories.filter(c => c.parent_id).map(c => c.id);
+        // Определяем категории для фильтрации
+        let categoryIdsToUse = [];
+        if (selectedCategoryIds.length > 0) {
+            // Используем выбранные пользователем категории
+            categoryIdsToUse = selectedCategoryIds;
+        } else {
+            // Используем отслеживаемые категории как запасной вариант
+            const trackedResp = await fetch('/api/categories?tracked=true');
+            const trackedCategories = await trackedResp.json();
+            categoryIdsToUse = trackedCategories.filter(c => c.parent_id).map(c => c.id);
+        }
         
         // Загружаем товары из всех выбранных магазинов
         let allProducts = [];
@@ -1446,8 +1459,8 @@ async function loadProductsEnhanced() {
                 let url = `/api/products?store_code=${encodeURIComponent(storeCode)}&sort_by=${sort}&limit=0&offset=${offset}`;
                 if (category) {
                     url += `&category_id=${category}`;
-                } else if (trackedCatIds.length > 0) {
-                    url += `&category_ids=${trackedCatIds.join(',')}`;
+                } else if (categoryIdsToUse.length > 0) {
+                    url += `&category_ids=${categoryIdsToUse.join(',')}`;
                 }
                 if (search) url += `&search=${encodeURIComponent(search)}`;
                 if (minPrice) url += `&min_price=${minPrice}`;
@@ -2096,11 +2109,11 @@ document.addEventListener('DOMContentLoaded', () => {
            updateDropdownText();
        });
        
-       // Загружаем товары при загрузке страницы если есть выбранные магазины
-       const selectedStores = getSelectedStores();
-       if (selectedStores.length > 0) {
-           setTimeout(loadProducts, 500);
-       }
+// Загружаем товары при загрузке страницы если есть выбранные магазины или категории
+        const selectedStores = getSelectedStores();
+        if (selectedStores.length > 0 || selectedCategoryIds.length > 0) {
+            setTimeout(loadProducts, 500);
+        }
 });
 </script>
 {% endblock %}
