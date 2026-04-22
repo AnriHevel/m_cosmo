@@ -48,7 +48,7 @@
 <!-- Сканирование по адресу -->
 <div class="card">
     <h2>Добавление магазинов</h2>
-    <p style="color:#666;margin-bottom:12px;">Укажите город, улицу (опционально) и нужные типы магазинов для поиска</p>
+    <p style="color:#666;margin-bottom:12px;">Укажите город и улицу (опционально) для поиска магазинов М.Косметик</p>
     <div class="form-row">
         <div class="form-group">
             <!-- <label>Город</label> -->
@@ -61,26 +61,7 @@
             <!-- <label>Улица (опционально)</label> -->
             <input type="text" id="scan-street" placeholder="Улица (опционально)" style="width:180px">
         </div>
-        <div class="form-group">
-            <label>Типы магазинов</label>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
-                <label style="font-size:13px;display:flex;align-items:center;gap:4px;">
-                    <input type="checkbox" class="scan-type-cb" value="Магнит" checked> Магнит
-                </label>
-                <label style="font-size:13px;display:flex;align-items:center;gap:4px;">
-                    <input type="checkbox" class="scan-type-cb" value="Мини" checked> Мини
-                </label>
-                <label style="font-size:13px;display:flex;align-items:center;gap:4px;">
-                    <input type="checkbox" class="scan-type-cb" value="Семейный" checked> Семейный
-                </label>
-                <label style="font-size:13px;display:flex;align-items:center;gap:4px;">
-                    <input type="checkbox" class="scan-type-cb" value="Экстра" checked> Экстра
-                </label>
-                <label style="font-size:13px;display:flex;align-items:center;gap:4px;">
-                    <input type="checkbox" class="scan-type-cb" value="Моя цена" checked> Моя цена
-                </label>
-            </div>
-        </div>
+
         <div class="form-group" style="align-self:end;">
             <button class="btn btn-success" onclick="scanByAddress()">Сканировать</button>
         </div>
@@ -236,14 +217,6 @@ async function scanByAddress() {
         return;
     }
 
-    const typeCheckboxes = document.querySelectorAll('.scan-type-cb:checked');
-    const storeTypes = Array.from(typeCheckboxes).map(cb => cb.value);
-
-    if (storeTypes.length === 0) {
-        alert('Выберите хотя бы один тип магазина');
-        return;
-    }
-
     statusDiv.innerHTML = '<div class="badge badge-info">Поиск магазинов...</div>';
     previewDiv.style.display = 'none';
 
@@ -251,11 +224,10 @@ async function scanByAddress() {
         const resp = await fetch('/api/stores/preview', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                city: city,
-                street: street || null,
-                store_types: storeTypes,
-            }),
+      body: JSON.stringify({
+        city: city,
+        street: street || null,
+      }),
         });
         const data = await resp.json();
 
@@ -279,12 +251,12 @@ function renderPreview(stores) {
     const container = document.getElementById('preview-table');
     const countSpan = document.getElementById('preview-count');
 
-    // Сначала новые (не в БД), сортировка по типу → адресу
-    const newStores = stores.filter(s => !s.exists_in_db)
-        .sort((a, b) => a.store_type.localeCompare(b.store_type, 'ru') || a.full_address.localeCompare(b.full_address, 'ru'));
-    // Затем существующие, тоже по типу → адресу
-    const existingStores = stores.filter(s => s.exists_in_db)
-        .sort((a, b) => a.store_type.localeCompare(b.store_type, 'ru') || a.full_address.localeCompare(b.full_address, 'ru'));
+  // Сначала новые (не в БД), сортировка по адресу
+  const newStores = stores.filter(s => !s.exists_in_db)
+    .sort((a, b) => a.full_address.localeCompare(b.full_address, 'ru'));
+  // Затем существующие, тоже по адресу
+  const existingStores = stores.filter(s => s.exists_in_db)
+    .sort((a, b) => a.full_address.localeCompare(b.full_address, 'ru'));
 
     const sortedStores = [...newStores, ...existingStores];
     previewStores = sortedStores;
@@ -298,23 +270,22 @@ function renderPreview(stores) {
         return;
     }
 
-    let html = `<table>
-        <thead><tr>
-            <th style="width:40px;"><input type="checkbox" id="select-all-preview" onchange="toggleAllPreview(this.checked)"></th>
-            <th>Тип</th><th>Город</th><th>Адрес</th><th>Код</th>
-        </tr></thead><tbody>`;
+  let html = `<table>
+<thead><tr>
+<th style="width:40px;"><input type="checkbox" id="select-all-preview" onchange="toggleAllPreview(this.checked)"></th>
+<th>Город</th><th>Адрес</th><th>Код</th>
+</tr></thead><tbody>`;
 
     for (let i = 0; i < sortedStores.length; i++) {
         const s = sortedStores[i];
         const rowClass = s.exists_in_db ? 'style="background:#f0f0f0;color:#999;"' : '';
         const badge = s.exists_in_db ? `<br><span style="color:#e67e22;font-size:11px;">(уже в базе)</span>` : '';
-        html += `<tr ${rowClass}>
-            <td data-label=""><input type="checkbox" class="preview-checkbox" data-index="${i}" ${s.exists_in_db ? 'disabled' : ''} onchange="updatePreviewSelection()"></td>
-            <td data-label="Тип:"><span class="badge badge-info">${s.store_type}</span>${badge}</td>
-            <td data-label="Город:">${s.city}</td>
-            <td data-label="Адрес:"><a href="https://yandex.ru/maps/?text=${encodeURIComponent(s.full_address)}" target="_blank" style="color:#2c3e50;text-decoration:underline;">${s.full_address}</a></td>
-            <td data-label="Код:"><code>${s.store_code}</code></td>
-        </tr>`;
+    html += `<tr ${rowClass}>
+  <td data-label=""><input type="checkbox" class="preview-checkbox" data-index="${i}" ${s.exists_in_db ? 'disabled' : ''} onchange="updatePreviewSelection()"></td>
+  <td data-label="Город:">${s.city}</td>
+  <td data-label="Адрес:"><a href="https://yandex.ru/maps/?text=${encodeURIComponent(s.full_address)}" target="_blank" style="color:#2c3e50;text-decoration:underline;">${s.full_address}</a></td>
+  <td data-label="Код:"><code>${s.store_code}</code></td>
+</tr>`;
     }
     html += '</tbody></table>';
     container.innerHTML = html;
@@ -440,8 +411,8 @@ async function filterStores() {
 }
 
 function renderTable(stores) {
-    // Сортировка по типу, затем по адресу
-    stores.sort((a, b) => (a.store_type || '').localeCompare(b.store_type || '', 'ru') || (a.full_address || '').localeCompare(b.full_address || '', 'ru'));
+  // Сортировка по адресу
+  stores.sort((a, b) => (a.full_address || '').localeCompare(b.full_address || '', 'ru'));
 
     const container = document.getElementById('stores-table');
     if (stores.length === 0) {
@@ -449,19 +420,18 @@ function renderTable(stores) {
         document.getElementById('delete-selected-btn').style.display = 'none';
         return;
     }
-    let html = `<table>
-        <thead><tr>
-            <th style="width:40px;"><input type="checkbox" id="select-all-stores" onchange="toggleAllStores(this.checked)"></th>
-            <th>Тип</th><th>Город</th><th>Адрес</th><th>Код</th>
-        </tr></thead><tbody>`;
-    for (const s of stores) {
-        html += `<tr>
-            <td data-label=""><input type="checkbox" class="store-checkbox" value="${s.id}" onchange="updateDeleteButton()"></td>
-            <td data-label="Тип:"><span class="badge badge-info">${s.store_type}</span></td>
-            <td data-label="Город:">${s.city}</td>
-            <td data-label="Адрес:"><a href="https://yandex.ru/maps/?text=${encodeURIComponent(s.full_address)}" target="_blank" style="color:#2c3e50;text-decoration:underline;">${s.full_address}</a></td>
-            <td data-label="Код:"><code>${s.store_code}</code></td>
-        </tr>`;
+  let html = `<table>
+<thead><tr>
+<th style="width:40px;"><input type="checkbox" id="select-all-stores" onchange="toggleAllStores(this.checked)"></th>
+<th>Город</th><th>Адрес</th><th>Код</th>
+</tr></thead><tbody>`;
+  for (const s of stores) {
+    html += `<tr>
+<td data-label=""><input type="checkbox" class="store-checkbox" value="${s.id}" onchange="updateDeleteButton()"></td>
+<td data-label="Город:">${s.city}</td>
+<td data-label="Адрес:"><a href="https://yandex.ru/maps/?text=${encodeURIComponent(s.full_address)}" target="_blank" style="color:#2c3e50;text-decoration:underline;">${s.full_address}</a></td>
+<td data-label="Код:"><code>${s.store_code}</code></td>
+</tr>`;
     }
     html += '</tbody></table>';
     container.innerHTML = html;

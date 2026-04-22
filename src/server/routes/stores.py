@@ -10,7 +10,6 @@ from sqlalchemy import or_
 from src.server.database import get_db
 from src.server.models import Store, ScanJob
 from src.server.schemas import StoreCreate, StoreUpdate, StoreResponse, SelectStoreRequest, ScanStoresRequest, DeleteStoresRequest, StorePreviewItem, AddSelectedStoresRequest
-from src.server.services.magnit_api import STORE_TYPE_MAP
 from src.server.utils.city_extractor import extract_city_from_address
 
 router = APIRouter(prefix="/api/stores", tags=["Магазины"])
@@ -205,7 +204,7 @@ def preview_stores(
 
     stores_api = None
     try:
-        from src.server.services.magnit_api import StoresAPI, STORE_TYPE_MAP
+        from src.server.services.magnit_api import StoresAPI
         stores_api = StoresAPI()
 
         # Формируем запрос: город + улица (если есть)
@@ -213,13 +212,10 @@ def preview_stores(
         if req.street:
             query += f", {req.street}"
 
-        type_codes = req.get_store_type_codes()
-
-        # Ищем через API (без сохранения)
+        # Ищем через API (без сохранения) - тип магазина всегда "DG" (М.Косметик)
         try:
             result = stores_api.search_stores(
                 query=query,
-                store_types=type_codes,
                 limit=50,
                 offset=0,
             )
@@ -241,30 +237,23 @@ def preview_stores(
             if not code:
                 print(f"DEBUG: Пропущен магазин без кода: {sd.get('address')}")
                 continue
-            
-            # Преобразуем формат API в наш формат
-            # storeTypeV2: "GM" -> STORE_TYPE_MAP.get("GM") = "Семейный"
-            store_type_api = sd.get("storeTypeV2") or sd.get("storeType", "")
-            # Удаляем префикс "STORE_TYPE_" если есть
-            if store_type_api.startswith("STORE_TYPE_"):
-                store_type_api = store_type_api[11:]
-            
-            store_type_name = STORE_TYPE_MAP.get(store_type_api, store_type_api)
-            print(f"DEBUG: Магазин {code}, тип API: {store_type_api}, тип UI: {store_type_name}")
-            
+
+            # Все магазины имеют тип "DG" (М.Косметик) согласно требованиям
+            store_type_name = "М.Косметик"
+
             # Получаем полный адрес
             full_address = sd.get("full_address") or sd.get("address", "")
-            
+
             # Извлекаем город/населённый пункт: сначала пробуем из API, если пусто или некорректно - из адреса
             city = sd.get("city", "")
             if not city or city.startswith("00000000-") or len(city) < 2:
                 city = extract_city_from_address(full_address)
-            
+
             # Если город не извлечён (например, для сёл без явного указания) - пропускаем магазин
             if not city:
                 print(f"DEBUG: Пропущен магазин без города: {full_address}")
                 continue
-            
+
             store_info = {
                 "store_code": code,
                 "store_type": store_type_name,
@@ -273,7 +262,7 @@ def preview_stores(
                 "full_address": full_address,
                 "name": sd.get("name"),
             }
-            
+
             if code not in seen:
                 seen[code] = store_info
 
@@ -313,10 +302,14 @@ def preview_stores(
                 pass
 
 
+# Маппинг типа магазина в код shop_type для БД
+# Поскольку мы используем только тип "М.Косметик", определяем его код
 STORE_TYPE_TO_SHOP_TYPE = {
+    "М.Косметик": 3,  # DG - М.Косметик
+    # Сохраняем остальные для обратной совместимости с существующими записями
     "Магнит": 1,
     "Мини": 2,
-    "М.Косметик": 3,
+    "Дискаунтер": 3,  # Для обратной совместимости
     "Семейный": 5,
     "Экстра": 6,
     "Опт": 7,

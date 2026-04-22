@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-from .services.magnit_api import STORE_TYPE_MAP
 
 
 # ===== Store =====
@@ -39,33 +38,21 @@ class StoreResponse(StoreBase):
 
 # ===== Scan Request =====
 
-# Обратный маппинг: UI-лейбл → API код
-STORE_TYPE_TO_CODE = {
-    v: k for k, v in STORE_TYPE_MAP.items() if v not in ("Мигом", "Заряд", "Опт")
-}
+# Фиксированный тип магазина согласно требованиям
+FIXED_STORE_TYPE = "М.Косметик"
 
 
 class ScanStoresRequest(BaseModel):
     city: str
     street: Optional[str] = None
-    store_types: list[str] = ["Магнит", "Экстра", "М.Косметик"]
     force_update: bool = False
-
-    def get_store_type_codes(self) -> list[str]:
-        """Преобразовать типы в коды API."""
-        codes = []
-        for t in self.store_types:
-            code = STORE_TYPE_TO_CODE.get(t)
-            if code:
-                codes.append(code)
-        return codes if codes else list(STORE_TYPE_TO_CODE.values())
 
 
 class StorePreviewItem(BaseModel):
     """Один магазин из результатов preview (ещё не в БД)."""
 
     store_code: str
-    store_type: str
+    store_type: str = FIXED_STORE_TYPE
     city: str
     address: str
     full_address: str
@@ -82,7 +69,61 @@ class AddSelectedStoresRequest(BaseModel):
 class SelectStoreRequest(BaseModel):
     city: str
     street: Optional[str] = None
-    store_type: str
+    store_type: str = FIXED_STORE_TYPE
+    update_env: bool = True
+
+
+class DeleteStoresRequest(BaseModel):
+    ids: list[str]
+
+
+# ===== ScanJob =====
+
+
+class ScanJobResponse(BaseModel):
+    id: int
+    job_type: str
+    store_code: Optional[str] = None
+    job_name: Optional[str] = None
+    status: str
+    progress_percent: int
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+# ===== Scan Request =====
+
+class ScanStoresRequest(BaseModel):
+    city: str
+    street: Optional[str] = None
+    force_update: bool = False
+
+
+class StorePreviewItem(BaseModel):
+    """Один магазин из результатов preview (ещё не в БД)."""
+
+    store_code: str
+    store_type: str = "М.Косметик"
+    city: str
+    address: str
+    full_address: str
+    name: Optional[str] = None
+    exists_in_db: bool = False  # подсветка существующих
+
+
+class AddSelectedStoresRequest(BaseModel):
+    """Добавить выбранные магазины из preview."""
+
+    stores: list[StorePreviewItem]
+
+
+class SelectStoreRequest(BaseModel):
+    city: str
+    street: Optional[str] = None
+    store_type: str = "М.Косметик"
     update_env: bool = True
 
 

@@ -210,15 +210,15 @@
             <label>Цена до</label>
             <input type="number" id="maxPrice" placeholder="1000" min="0" disabled style="width: 100%;">
         </div>
-        <div class="form-group">
-            <label>Экономия (%)</label>
-            <select id="savingsFilter">
-                <option value="">-</option>
-                <option value="10">10%</option>
-                <option value="20">20%</option>
-                <option value="30">30%</option>
-            </select>
-        </div>
+<div class="form-group">
+<label>Экономия (%)</label>
+<select id="savingsFilter">
+<option value="">-</option>
+<option value="20">20%</option>
+<option value="40">40%</option>
+<option value="60">60%</option>
+</select>
+</div>
     </div>
 </div>
 
@@ -1342,10 +1342,10 @@ function renderProductsList(products, selectedStores, allStorePrices, storeInfoM
                                 const lastUpdate = priceInfo.last_seen ? new Date(priceInfo.last_seen).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'неизвестно';
                                 const tooltipText = `Остаток: ${quantity} | Обновлено: ${lastUpdate}`;
                                 
-                                // Создаем ссылку на товар в Магните
-                                const seoCode = priceInfo.seo_code;
-                                const shopType = priceInfo.shop_type;
-                                const productUrl = seoCode && shopType ? `https://magnit.ru/product/${p.product_id}-${seoCode}?shopCode=${storeCode}&shopType=${shopType}` : null;
+          // Создаем ссылку на товар в М.Косметик
+          const seoCode = priceInfo.seo_code;
+          const shopType = priceInfo.shop_type;
+          const productUrl = seoCode && shopType ? `https://cosmetic.magnit.ru/product/${p.product_id}-${seoCode}?shopCode=${storeCode}&shopType=${shopType}` : null;
                                 const priceLink = productUrl 
                                     ? `<a href="javascript:void(0)" onclick="openProductLink('${productUrl}', '${storeCode}', ${shopType})" style="text-decoration: none; color: ${color}; cursor: pointer;"><span style="${savingsStyle}">${priceInfo.price} ₽${savingsText}</span></a>`
                                     : `<span style="${savingsStyle}">${priceInfo.price} ₽${savingsText}</span>`;
@@ -1443,10 +1443,10 @@ function renderSimpleList(products, selectedStores, activeStoreCode, otherStoreP
                           const lastUpdate = priceInfo.last_seen ? new Date(priceInfo.last_seen).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'неизвестно';
                           const tooltipText = `Остаток: ${quantity} | Обновлено: ${lastUpdate}`;
                           
-                          // Создаем ссылку на товар в Магните
-                          const seoCode = priceInfo.seo_code;
-                          const shopType = priceInfo.shop_type;
-                          const productUrl = seoCode && shopType ? `https://magnit.ru/product/${p.product_id}-${seoCode}?shopCode=${storeCode}&shopType=${shopType}` : null;
+          // Создаем ссылку на товар в М.Косметик
+          const seoCode = priceInfo.seo_code;
+          const shopType = priceInfo.shop_type;
+          const productUrl = seoCode && shopType ? `https://cosmetic.magnit.ru/product/${p.product_id}-${seoCode}?shopCode=${storeCode}&shopType=${shopType}` : null;
                           const priceLink = productUrl 
                               ? `<a href="javascript:void(0)" onclick="openProductLink('${productUrl}', '${storeCode}', ${shopType})" style="text-decoration: none; color: ${color}; cursor: pointer;"><span style="${savingsStyle}">${priceInfo.price} ₽${savingsText}</span></a>`
                               : `<span style="${savingsStyle}">${priceInfo.price} ₽${savingsText}</span>`;
@@ -1460,7 +1460,7 @@ function renderSimpleList(products, selectedStores, activeStoreCode, otherStoreP
               const activePriceInfo = productPrices[activeStoreCode];
               const activeShopType = activePriceInfo?.shop_type;
               const activeSeoCode = activePriceInfo?.seo_code;
-              const activeProductUrl = activeSeoCode && activeShopType && activeStoreCode ? `https://magnit.ru/product/${p.product_id}-${activeSeoCode}?shopCode=${activeStoreCode}&shopType=${activeShopType}` : null;
+              const activeProductUrl = activeSeoCode && activeShopType && activeStoreCode ? `https://cosmetic.magnit.ru/product/${p.product_id}-${activeSeoCode}?shopCode=${activeStoreCode}&shopType=${activeShopType}` : null;
               const activePriceLink = activeProductUrl 
                   ? `<a href="javascript:void(0)" onclick="openProductLink('${activeProductUrl}', '${activeStoreCode}', ${activeShopType})" style="text-decoration: none; color: inherit;"><strong>${p.price} ₽${activeSavingsText}</strong></a>`
                   : `<strong>${p.price} ₽${activeSavingsText}</strong>`;

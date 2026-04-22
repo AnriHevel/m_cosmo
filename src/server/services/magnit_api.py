@@ -21,7 +21,7 @@ class MagnitAPIClient:
 
     def __init__(
         self,
-        base_url: str = "https://magnit.ru",
+        base_url: str = "https://cosmetic.magnit.ru",
         store_code: Optional[str] = None,
         store_type: Optional[str] = None,
         timeout: int = 15,
@@ -43,9 +43,12 @@ class MagnitAPIClient:
                 "Accept": "application/json",
                 "Accept-Language": "ru-RU,ru;q=0.9",
                 "Content-Type": "application/json",
-                "Referer": "https://magnit.ru/",
-                "Origin": "https://magnit.ru",
+                "Referer": "https://cosmetic.magnit.ru/",
+                "Origin": "https://cosmetic.magnit.ru",
                 "X-Requested-With": "XMLHttpRequest",
+                "X-Client-Name": "cosmetic",
+                "X-New-Magnit": "true",
+                "X-Device-Platform": "Web",
             }
         )
         self._last_request_time = 0
@@ -344,6 +347,7 @@ API_STORE_TYPE_CODE = {
     "Магнит": "1",
     "Экстра": "6",
     "М.Косметик": "3",
+    "Дискаунтер": "3",  # DG - М.Косметик
     "Семейный": "5",
     "Опт": "7",
     "Моя цена": "9",
@@ -363,7 +367,7 @@ class StoresAPI:
 
     def __init__(
         self,
-        base_url: str = "https://magnit.ru",
+        base_url: str = "https://cosmetic.magnit.ru",
         timeout: int = 15,
         rate_limit: float = 0.3,
     ):
@@ -378,8 +382,8 @@ class StoresAPI:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
                 "Accept": "application/json, text/plain, */*",
                 "Accept-Language": "en-US,en;q=0.9,ru-RU;q=0.8,ru;q=0.7",
-                "Referer": "https://magnit.ru/",
-                "Origin": "https://magnit.ru",
+                "Referer": "https://cosmetic.magnit.ru/",
+                "Origin": "https://cosmetic.magnit.ru",
                 "Content-Type": "application/json",
                 "X-Client-Name": "magnit",
                 "X-New-Magnit": "true",
@@ -412,11 +416,11 @@ class StoresAPI:
     ) -> dict:
         """
         Поиск магазинов по адресу.
-        Выполняет отдельный запрос для каждого типа магазина и объединяет результаты.
+        Выполняет запрос с фиксированным типом магазина "DG".
 
         Args:
             query: Поисковый запрос (адрес, город, улица)
-            store_types: Список типов магазинов для фильтрации
+            store_types: Список типов магазинов для фильтрации (игнорируется, используется фиксированный тип "DG")
             limit: Кол-во результатов
             offset: Смещение для пагинации
 
@@ -424,7 +428,7 @@ class StoresAPI:
             {
                 "stores": [...],
                 "total": N,
-                "hasMore": True
+                "hasMore": False
             }
         """
         self._rate_limit_wait()
@@ -436,70 +440,75 @@ class StoresAPI:
             self.session.get(f"{self.base_url}/shops", timeout=10)
         except Exception as e:
             print(f"Warning: Could not get cookies: {e}")
+
+        # Убеждаемся, что base_url использует cosmetic.magnit.ru
+        url = url.replace("https://magnit.ru", "https://cosmetic.magnit.ru")
         
-        # Список типов для запроса
-        types_to_search = store_types if store_types else ALL_STORE_TYPES
-        
-        all_stores = []
-        
-        # Выполняем отдельный запрос для каждого типа магазина
-        for store_type in types_to_search:
-            payload = {
-                "filters": {
-                    "query": query,
-                    "storeTypeListV2": [store_type],  # Только один тип за запрос
-                },
-                "pagination": {
-                    "offset": offset,
-                    "size": limit,
-                },
-                "sorting": {
-                    "sortBy": "SORT_BY_CITY",
-                    "sortType": "SORT_TYPE_ASC",
-                }
+        # Используем фиксированный тип магазина "DG" согласно требованиям
+        store_type = "DG"
+        payload = {
+            "filters": {
+                "query": query,
+                "storeTypeListV2": [store_type],  # Фиксированный тип магазина
+            },
+            "pagination": {
+                "offset": offset,
+                "size": limit,
+            },
+            "sorting": {
+                "sortBy": "SORT_BY_CITY",
+                "sortType": "SORT_TYPE_ASC",
             }
-
-            try:
-                print(f"DEBUG StoresAPI: POST {url} (type={store_type})")
-                print(f"DEBUG StoresAPI: Payload: {json.dumps(payload, ensure_ascii=False)}")
-                print(f"DEBUG StoresAPI: Cookies: {self.session.cookies.get_dict()}")
-                
-                response = self.session.post(url, json=payload, timeout=self.timeout)
-                
-                print(f"DEBUG StoresAPI: Response status: {response.status_code}")
-                print(f"DEBUG StoresAPI: Response text: {response.text[:500]}")
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    # Ответ API имеет структуру: {"data": [...], "totalCount": N}
-                    stores = data.get("data", [])
-                    print(f"DEBUG StoresAPI: Found {len(stores)} stores for type {store_type}")
-                    all_stores.extend(stores)
-                else:
-                    print(f"DEBUG StoresAPI: Response text: {response.text[:500]}")
-                    
-            except requests.RequestException as e:
-                print(f"ERROR StoresAPI for type {store_type}: {e}")
-                # Продолжаем поиск для остальных типов
-
-        # Дедупликация по code
-        seen_codes = {}
-        for store in all_stores:
-            # API возвращает code в externalId.storeCode
-            external_id = store.get("externalId", {})
-            code = external_id.get("storeCode") or store.get("code") or store.get("store_code")
-            if code and code not in seen_codes:
-                seen_codes[code] = store
-        
-        unique_stores = list(seen_codes.values())
-        
-        print(f"DEBUG StoresAPI: Total unique stores: {len(unique_stores)}")
-
-        return {
-            "stores": unique_stores,
-            "total": len(unique_stores),
-            "hasMore": False,
         }
+        
+        try:
+            print(f"DEBUG StoresAPI: POST {url} (type={store_type})")
+            print(f"DEBUG StoresAPI: Payload: {json.dumps(payload, ensure_ascii=False)}")
+            print(f"DEBUG StoresAPI: Cookies: {self.session.cookies.get_dict()}")
+            
+            response = self.session.post(url, json=payload, timeout=self.timeout)
+            
+            print(f"DEBUG StoresAPI: Response status: {response.status_code}")
+            print(f"DEBUG StoresAPI: Response text: {response.text[:500]}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Ответ API имеет структуру: {"data": [...], "totalCount": N}
+                stores = data.get("data", [])
+                print(f"DEBUG StoresAPI: Found {len(stores)} stores for type {store_type}")
+                
+                # Дедупликация по code (на всякий случай)
+                seen_codes = {}
+                unique_stores = []
+                for store in stores:
+                    # API возвращает code в externalId.storeCode
+                    external_id = store.get("externalId", {})
+                    code = external_id.get("storeCode") or store.get("code") or store.get("store_code")
+                    if code and code not in seen_codes:
+                        seen_codes[code] = store
+                        unique_stores.append(store)
+                
+                print(f"DEBUG StoresAPI: Total unique stores after deduplication: {len(unique_stores)}")
+                return {
+                    "stores": unique_stores,
+                    "total": len(unique_stores),
+                    "hasMore": False,
+                }
+            else:
+                print(f"DEBUG StoresAPI: Response text: {response.text[:500]}")
+                return {
+                    "stores": [],
+                    "total": 0,
+                    "hasMore": False,
+                }
+                
+        except requests.RequestException as e:
+            print(f"ERROR StoresAPI: {e}")
+            return {
+                "stores": [],
+                "total": 0,
+                "hasMore": False,
+            }
 
     def close(self):
         """Закрыть сессию."""
