@@ -259,7 +259,7 @@ def list_products(
     min_price: Optional[float] = Query(None),
     max_price: Optional[float] = Query(None),
     sort_by: str = Query("name", pattern="^(name|price|discount|last_seen)$"),
-    limit: int = Query(100, le=500),
+    limit: int = Query(0, description="0 = all"),
     offset: int = Query(0),
     db: Session = Depends(get_db),
 ):
@@ -330,7 +330,10 @@ def list_products(
     else:
         query = query.order_by(Product.name.asc())
 
-    products = query.offset(offset).limit(limit).all()
+    if limit > 0:
+        products = query.offset(offset).limit(limit).all()
+    else:
+        products = query.offset(offset).all()
 
     result = []
     for p in products:

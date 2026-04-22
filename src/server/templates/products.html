@@ -329,7 +329,7 @@ async function loadProducts() {
             });
             
             for (const storeCode of otherStores) {
-                const resp = await fetch(`/api/products?store_code=${storeCode}&limit=500`);
+                const resp = await fetch(`/api/products?store_code=${storeCode}&limit=0`);
                 const prods = await resp.json();
                 const priceMap = {};
                 prods.forEach(p => priceMap[p.product_id] = p.price);
@@ -1026,7 +1026,7 @@ async function loadProductsEnhanced() {
             let hasMore = true;
             
             while (hasMore) {
-                let url = `/api/products?store_code=${encodeURIComponent(storeCode)}&sort_by=${sort}&limit=500&offset=${offset}`;
+                let url = `/api/products?store_code=${encodeURIComponent(storeCode)}&sort_by=${sort}&limit=0&offset=${offset}`;
                 if (category) {
                     url += `&category_id=${category}`;
                 } else if (trackedCatIds.length > 0) {
@@ -1043,6 +1043,7 @@ async function loadProductsEnhanced() {
                     if (products.length === 0) {
                         hasMore = false;
                     } else {
+                        offset += products.length;
                         // Объединяем товары, избегая дубликатов
                         products.forEach(p => {
                             if (!productMap[p.product_id]) {
@@ -1050,7 +1051,6 @@ async function loadProductsEnhanced() {
                                 allProducts.push(p);
                             }
                         });
-                        offset += products.length;
                     }
                 } catch (e) {
                     console.error(`Ошибка загрузки товаров из магазина ${storeCode} (offset=${offset}):`, e);
