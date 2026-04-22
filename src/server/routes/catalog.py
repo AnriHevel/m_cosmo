@@ -250,11 +250,58 @@ def update_categories_tracking(
     }
 
 
+@router.get("/categories/tree")
+def get_categories_tree(
+    db: Session = Depends(get_db),
+):
+    """Возвращает дерево категорий с информацией об отслеживании."""
+    # Получаем все категории
+    all_categories = db.query(Category).order_by(Category.name).all()
+    
+    # Создаем словарь для быстрого доступа и списка детей
+    categories_dict = {}
+    for cat in all_categories:
+        categories_dict[cat.id] = {
+            "id": cat.id,
+            "name": cat.name,
+            "magnit_id": cat.magnit_id,
+            "parent_id": cat.parent_id,
+            "is_tracked": cat.is_tracked,
+            "product_count": cat.product_count,
+            "last_scanned": cat.last_scanned.isoformat() if cat.last_scanned else None,
+            "children": []
+        }
+    
+    # Строим дерево
+    root_categories = []
+    for cat_id, cat_data in categories_dict.items():
+        parent_id = cat_data["parent_id"]
+        if parent_id is None:
+            # Корневая категория
+            root_categories.append(cat_data)
+        else:
+            # Добавляем к родителю
+            if parent_id in categories_dict:
+                categories_dict[parent_id]["children"].append(cat_data)
+    
+    # Сортируем детей по имени
+    def sort_children(node):
+        node["children"].sort(key=lambda x: x["name"])
+        for child in node["children"]:
+            sort_children(child)
+    
+    for root in root_categories:
+        sort_children(root)
+    
+    return root_categories
+
+
 @router.get("/products", response_model=list[dict])
 def list_products(
     store_code: Optional[str] = Query(None),
     category_id: Optional[int] = Query(None),
     category_ids: Optional[str] = Query(None, description="Comma-separated category IDs"),
+    tracked_only: Optional[bool] = Query(None, description="Фильтровать только товары из отслеживаемых категорий"),
     search: Optional[str] = Query(None),
     min_price: Optional[float] = Query(None),
     max_price: Optional[float] = Query(None),
@@ -282,6 +329,17 @@ def list_products(
         query = query.filter(Product.price >= min_price)
     if max_price is not None:
         query = query.filter(Product.price <= max_price)
+    
+    # Фильтрация по отслеживаемым категориям
+    if tracked_only:
+        # Получаем ID отслеживаемых категорий
+        tracked_cat_ids = db.query(Category.id).filter(Category.is_tracked == True).all()
+        tracked_cat_ids = [c[0] for c in tracked_cat_ids]
+        if tracked_cat_ids:
+            query = query.filter(Product.category_id.in_(tracked_cat_ids))
+        else:
+            # Если нет отслеживаемых категорий - возвращаем пустой результат
+            return []
     
     # Фильтруем товары, которые были найдены при последнем сканировании категории
     # Показываем только товары, обновленные не позднее 1 часа от последнего обновления категории

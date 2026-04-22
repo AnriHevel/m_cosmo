@@ -161,6 +161,78 @@
     opacity: 1;
     visibility: visible;
 }
+
+/* Стили для дерева категорий */
+.category-item {
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.category-item input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.category-label {
+    cursor: pointer;
+    flex: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.category-label:hover {
+    background: #f5f5f5;
+}
+
+.category-tracked {
+    color: inherit;
+    font-weight: normal;
+}
+
+.category-children {
+    margin-left: 20px;
+    border-left: 1px solid #eee;
+    padding-left: 12px;
+}
+
+.category-children .category-item {
+    padding: 2px 0;
+}
+
+.dropdown-button:hover {
+    border-color: #999;
+}
+
+/* Fix for dropdown width shift when scrollbar appears */
+.category-dropdown {
+    /* Reserve space for scrollbar to prevent layout shift */
+    scrollbar-width: thin; /* Firefox */
+    -ms-overflow-style: scrollbar; /* IE and Edge */
+    /* Always reserve space for scrollbar to prevent layout shift */
+    overflow-y: scroll !important;
+}
+.category-dropdown::-webkit-scrollbar {
+    width: 8px; /* WebKit */
+}
+.category-dropdown::-webkit-scrollbar-track {
+    background: #f1f1f1; 
+}
+.category-dropdown::-webkit-scrollbar-thumb {
+    background: #888; 
+    border-radius: 4px;
+}
+.category-dropdown::-webkit-scrollbar-thumb:hover {
+    background: #555; 
+}
+
+/* Ensure consistent width regardless of scrollbar */
+.category-dropdown-container {
+    width: 100%;
+    box-sizing: border-box;
+}
 </style>
 
 <div class="card">
@@ -168,10 +240,23 @@
 
     <div class="form-row">
         <div class="form-group" style="flex: 3;">
-            <label>Категория</label>
-            <select id="categoryFilter" onchange="loadProducts()">
-                <option value="">Все категории</option>
-            </select>
+            <label>Категории</label>
+            <div class="category-dropdown-container" style="position: relative;">
+                <button id="categoryDropdownButton" class="dropdown-button" onclick="toggleCategoryDropdown()" style="width: 100%; text-align: left; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; background: white; cursor: pointer;">
+                    <span id="categoryDropdownText">Все категории</span>
+                    <span style="float: right;">▼</span>
+                </button>
+                <div id="categoryDropdown" class="category-dropdown" style="display: none; position: absolute; top: 100%; left: 0; width: 100%; max-height: 400px; overflow-y: scroll; background: white; border: 1px solid #ddd; border-radius: 4px; z-index: 1000; margin-top: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                    <div style="padding: 4px 12px;">
+                        <span id="selectedCount" style="color: #666; font-size: 14px;">Выбрано: 0</span>
+                        <button class="btn btn-sm btn-secondary" onclick="selectAllCategories(); return false;" style="margin-left: 8px; padding: 2px 8px;">Выбрать все</button>
+                        <button class="btn btn-sm btn-secondary" onclick="deselectAllCategories(); return false;" style="padding: 2px 8px;">Снять все</button>
+                    </div>
+                    <div id="categoryTree" style="padding: 8px;">
+                        <p style="color: #666;">Загрузка категорий...</p>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="form-group">
             <label>Поиск</label>
@@ -266,6 +351,343 @@ function openProductLink(url, storeCode, shopType) {
     window.open(url, '_blank');
 }
 
+// Глобальные переменные для работы с категориями
+let selectedCategoryIds = [];
+let categoryTreeData = null;
+
+// Функции для работы с dropdown категорий
+function toggleCategoryDropdown() {
+    const dropdown = document.getElementById('categoryDropdown');
+    const isVisible = dropdown.style.display === 'block';
+    dropdown.style.display = isVisible ? 'none' : 'block';
+    
+    if (!isVisible && !categoryTreeData) {
+        loadCategoryTree();
+    }
+}
+
+// Закрытие dropdown при клике вне его
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('categoryDropdown');
+    const button = document.getElementById('categoryDropdownButton');
+    if (dropdown && button && !dropdown.contains(event.target) && !button.contains(event.target)) {
+        dropdown.style.display = 'none';
+    }
+});
+
+// Загрузка дерева категорий
+async function loadCategoryTree() {
+    const categoryTree = document.getElementById('categoryTree');
+    try {
+        const response = await fetch('/api/categories/tree');
+        categoryTreeData = await response.json();
+        renderCategoryTree(categoryTreeData);
+        updateCheckboxes();
+        updateSelectedCount();
+        return categoryTreeData;
+    } catch (error) {
+        categoryTree.innerHTML = '<p style="color: #dc3545;">Ошибка загрузки категорий</p>';
+        return null;
+    }
+}
+
+// Рендеринг дерева категорий
+function renderCategoryTree(categories, parentId = null) {
+    const container = document.getElementById('categoryTree');
+    let html = '';
+    
+    function renderNode(category, depth = 0) {
+        const indent = depth * 20;
+        const hasChildren = category.children && category.children.length > 0;
+        const isChecked = selectedCategoryIds.includes(category.id);
+        const trackedClass = category.is_tracked ? 'category-tracked' : '';
+        
+        html += `
+            <div class="category-item" style="margin-left: ${indent}px;">
+                <input type="checkbox" id="cat-${category.id}" value="${category.id}" 
+                       ${isChecked ? 'checked' : ''} 
+                       onchange="toggleCategoryCheckbox(this)">
+<label for="cat-${category.id}" class="category-label ${trackedClass}" 
+                       title="${category.is_tracked ? 'Отслеживается' : 'Не отслеживается'}">
+                     ${escapeHtml(category.name)}
+                     ${category.product_count ? ` (${category.product_count})` : ''}
+                   </label>
+            </div>
+        `;
+        
+        if (hasChildren) {
+            html += `<div class="category-children">`;
+            category.children.forEach(child => renderNode(child, depth + 1));
+            html += `</div>`;
+        }
+    }
+    
+    categories.forEach(category => renderNode(category));
+    container.innerHTML = html;
+}
+
+// Обработчик чекбокса категории
+function toggleCategoryCheckbox(checkbox) {
+    const categoryId = parseInt(checkbox.value);
+    
+    if (checkbox.checked) {
+        // Добавляем эту категорию и все её дочерние
+        addCategoryAndChildren(categoryId);
+    } else {
+        // Убираем эту категорию и все её дочерние
+        removeCategoryAndChildren(categoryId);
+    }
+    
+    updateSelectedCount();
+    updateDropdownText();
+    updateCheckboxes();
+}
+
+// Добавляем категорию и все её дочерние в выбранные
+function addCategoryAndChildren(categoryId) {
+    if (!categoryTreeData) return;
+    
+    function addIfNotExists(catId) {
+        if (!selectedCategoryIds.includes(catId)) {
+            selectedCategoryIds.push(catId);
+        }
+    }
+    
+    function traverseAndAdd(categories) {
+        categories.forEach(cat => {
+            if (cat.id === categoryId || isParentOf(categoryId, cat.id)) {
+                addIfNotExists(cat.id);
+            }
+            if (cat.children) {
+                traverseAndAdd(cat.children);
+            }
+        });
+    }
+    
+    traverseAndAdd(categoryTreeData);
+}
+
+// Убираем категорию и все её дочерние из выбранных
+function removeCategoryAndChildren(categoryId) {
+    if (!categoryTreeData) return;
+    
+    function traverseAndRemove(categories) {
+        categories.forEach(cat => {
+            if (cat.id === categoryId || isParentOf(categoryId, cat.id)) {
+                const index = selectedCategoryIds.indexOf(cat.id);
+                if (index > -1) {
+                    selectedCategoryIds.splice(index, 1);
+                }
+            }
+            if (cat.children) {
+                traverseAndRemove(cat.children);
+            }
+        });
+    }
+    
+    traverseAndRemove(categoryTreeData);
+}
+
+// Проверяем, является ли категория родителем другой
+function isParentOf(parentId, childId) {
+    if (!categoryTreeData) return false;
+    
+    function traverse(categories) {
+        for (let i = 0; i < categories.length; i++) {
+            const cat = categories[i];
+            if (cat.id === parentId) {
+                // Проверяем прямых детей
+                for (let j = 0; j < cat.children.length; j++) {
+                    if (cat.children[j].id === childId) return true;
+                    // Рекурсивно проверяем внуков
+                    if (isParentOfRecursive(cat.children[j].id, childId, cat.children)) {
+                        return true;
+                    }
+                }
+            }
+            if (cat.children && traverse(cat.children)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    return traverse(categoryTreeData);
+}
+
+// Рекурсивная проверка родительско-дочерних отношений
+function isParentOfRecursive(currentId, targetId, categories) {
+    for (let i = 0; i < categories.length; i++) {
+        const cat = categories[i];
+        if (cat.id === currentId) {
+            for (let j = 0; j < cat.children.length; j++) {
+                if (cat.children[j].id === targetId) return true;
+                if (isParentOfRecursive(cat.children[j].id, targetId, cat.children)) {
+                    return true;
+                }
+            }
+        }
+        if (cat.children && isParentOfRecursive(currentId, targetId, cat.children)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
+
+// Обновление всех чекбоксов
+function updateCheckboxes() {
+    if (!categoryTreeData) return;
+    
+    function updateNodeChecks(categories) {
+        categories.forEach(cat => {
+            const checkbox = document.getElementById(`cat-${cat.id}`);
+            if (checkbox) {
+                // Для категорий с детьми проверяем состояние дочерних
+                if (cat.children && cat.children.length > 0) {
+                    const childCheckedCount = cat.children.filter(child => 
+                        selectedCategoryIds.includes(child.id)).length;
+                    const totalChildren = cat.children.length;
+                    
+                    if (childCheckedCount === totalChildren) {
+                        // Все дочерние выбраны
+                        checkbox.checked = true;
+                        checkbox.indeterminate = false;
+                    } else if (childCheckedCount === 0) {
+                        // Ни один дочерний не выбран
+                        checkbox.checked = false;
+                        checkbox.indeterminate = false;
+                    } else {
+                        // Некоторые дочерние выбраны
+                        checkbox.checked = false;
+                        checkbox.indeterminate = true;
+                    }
+                } else {
+                    // Листовая категория
+                    checkbox.checked = selectedCategoryIds.includes(cat.id);
+                    checkbox.indeterminate = false;
+                }
+            }
+            if (cat.children) {
+                updateNodeChecks(cat.children);
+            }
+        });
+    }
+    
+    updateNodeChecks(categoryTreeData);
+}
+
+// Выбрать все категории
+function selectAllCategories() {
+    if (!categoryTreeData) return;
+    
+    function collectAllIds(categories) {
+        let ids = [];
+        categories.forEach(cat => {
+            ids.push(cat.id);
+            if (cat.children) {
+                ids = ids.concat(collectAllIds(cat.children));
+            }
+        });
+        return ids;
+    }
+    
+    selectedCategoryIds = collectAllIds(categoryTreeData);
+    updateCheckboxes();
+    updateSelectedCount();
+    updateDropdownText();
+}
+
+// Снять все категории
+function deselectAllCategories() {
+    selectedCategoryIds = [];
+    updateCheckboxes();
+    updateSelectedCount();
+    updateDropdownText();
+    document.getElementById('trackedOnly').checked = false;
+}
+
+// Обновление счетчика выбранных категорий
+function updateSelectedCount() {
+    const countElement = document.getElementById('selectedCount');
+    if (countElement) {
+        // Считаем только дочерние категории (где parent_id не null) для согласованности с каталогом
+        let childCount = 0;
+        if (categoryTreeData) {
+            function countChildCategories(categories) {
+                categories.forEach(cat => {
+                    if (cat.parent_id !== null && selectedCategoryIds.includes(cat.id)) {
+                        childCount++;
+                    }
+                    if (cat.children) {
+                        countChildCategories(cat.children);
+                    }
+                });
+            }
+            countChildCategories(categoryTreeData);
+        }
+        countElement.textContent = `Выбрано: ${childCount}`;
+    }
+    saveFilterState();
+}
+
+// Обновление текста на кнопке dropdown
+function updateDropdownText() {
+    const textElement = document.getElementById('categoryDropdownText');
+    
+    // Считаем только дочерние категории (где parent_id не null) для согласованности с каталогом
+    let childCount = 0;
+    let totalChildCount = 0;
+    
+    if (categoryTreeData) {
+        function countChildCategories(categories) {
+            categories.forEach(cat => {
+                if (cat.parent_id !== null) {
+                    totalChildCount++;
+                    if (selectedCategoryIds.includes(cat.id)) {
+                        childCount++;
+                    }
+                }
+                if (cat.children) {
+                    countChildCategories(cat.children);
+                }
+            });
+        }
+        countChildCategories(categoryTreeData);
+    }
+    
+    if (childCount === 0) {
+        textElement.textContent = 'Выберите категории';
+    } else if (childCount === totalChildCount) {
+        textElement.textContent = 'Все категории';
+    } else {
+        textElement.textContent = `Выбрано: ${childCount}`;
+    }
+    saveFilterState();
+}
+
+// Сохранение состояния фильтров в localStorage
+function saveFilterState() {
+    localStorage.setItem('categoryFilter_selectedIds', JSON.stringify(selectedCategoryIds));
+}
+
+// Загрузка состояния фильтров из localStorage
+function loadFilterState() {
+    const savedIds = localStorage.getItem('categoryFilter_selectedIds');
+    
+    if (savedIds) {
+        selectedCategoryIds = JSON.parse(savedIds);
+    }
+}
+
+// Применение фильтра категорий
+function applyCategoryFilter() {
+    document.getElementById('categoryDropdown').style.display = 'none';
+    saveFilterState();
+    loadProducts();
+}
+
 async function loadProducts() {
     const storeCode = document.getElementById('storeCode').value;
     const category = document.getElementById('categoryFilter').value;
@@ -287,19 +709,14 @@ async function loadProducts() {
     const listDiv = document.getElementById('products-list');
     listDiv.innerHTML = '<p style="color: #666;">Загрузка...</p>';
 
-    try {
-        // Получаем ID отслеживаемых категорий (только дочерние)
-        const trackedResp = await fetch('/api/categories?tracked=true');
-        const trackedCategories = await trackedResp.json();
-        const trackedCatIds = trackedCategories.filter(c => c.parent_id).map(c => c.id);
-        
+try {
         let url = `/api/products?store_code=${encodeURIComponent(activeStoreCode)}&sort_by=${sort}&limit=100`;
-        if (category) {
-            url += `&category_id=${category}`;
-        } else if (trackedCatIds.length > 0) {
-            // Фильтруем только по отслеживаемым категориям
-            url += `&category_ids=${trackedCatIds.join(',')}`;
+        
+        if (selectedCategoryIds.length > 0) {
+            // Используем выбранные категории через чекбоксы
+            url += `&category_ids=${selectedCategoryIds.join(',')}`;
         }
+        
         if (search) url += `&search=${encodeURIComponent(search)}`;
 
         const response = await fetch(url);
@@ -1664,29 +2081,26 @@ document.addEventListener('DOMContentLoaded', () => {
          });
      }
      
-     // Применяем сохранённый процент экономии при загрузке страницы
-     const savedSavings = localStorage.getItem('savingsFilter');
-     if (savedSavings && savingsFilterEl) {
-         savingsFilterEl.value = savedSavings;
-         // Загружаем товары с применённым фильтром
-         setTimeout(() => {
-             loadProducts();
-             // Раскрываем категории если выбран процент (не "-")
-             if (savedSavings !== '') {
-                 // Пытаемся раскрыть категории с несколькими попытками
-                 setTimeout(expandAllCategories, 1500);
-                 setTimeout(expandAllCategories, 2500);
-             } else {
-                 setTimeout(collapseAllButFirst, 1500);
-             }
-         }, 100);
-     }
-     
-     // Загружаем товары при загрузке страницы если есть выбранные магазины
-     const selectedStores = getSelectedStores();
-     if (selectedStores.length > 0) {
-         setTimeout(loadProducts, 500);
-     }
+// Применяем сохранённый процент экономии при загрузке страницы
+       const savedSavings = localStorage.getItem('savingsFilter');
+       if (savedSavings && savingsFilterEl) {
+           savingsFilterEl.value = savedSavings;
+       }
+       
+       // Загружаем состояние фильтров категорий
+       loadFilterState();
+       
+       // Загружаем дерево категорий для отображения количества выбранных
+       // и обновляем текст dropdown после загрузки
+       loadCategoryTree().then(() => {
+           updateDropdownText();
+       });
+       
+       // Загружаем товары при загрузке страницы если есть выбранные магазины
+       const selectedStores = getSelectedStores();
+       if (selectedStores.length > 0) {
+           setTimeout(loadProducts, 500);
+       }
 });
 </script>
 {% endblock %}
