@@ -355,6 +355,10 @@ function openProductLink(url, storeCode, shopType) {
 let selectedCategoryIds = [];
 let categoryTreeData = null;
 
+// Глобальные переменные для отслеживания изменений
+let lastSelectedCategoryIds = [];
+let lastSavingsValue = '';
+
 // Функции для работы с dropdown категорий
 function toggleCategoryDropdown() {
     const dropdown = document.getElementById('categoryDropdown');
@@ -366,14 +370,25 @@ function toggleCategoryDropdown() {
     }
 }
 
-// Закрытие dropdown при клике вне его
+// Закрытие dropdown при клике вне его — только при реальном изменении списка категорий
 document.addEventListener('click', function(event) {
     const dropdown = document.getElementById('categoryDropdown');
     const button = document.getElementById('categoryDropdownButton');
     if (dropdown && button && !dropdown.contains(event.target) && !button.contains(event.target)) {
-        dropdown.style.display = 'none';
-        // Загружаем товары после закрытия dropdown
-        loadProducts();
+        if (dropdown.style.display !== 'none') {
+            // Сравниваем с предыдущим состоянием
+            const currentIdsJSON = JSON.stringify(selectedCategoryIds);
+            const prevIdsJSON = JSON.stringify(lastSelectedCategoryIds);
+            
+            if (currentIdsJSON !== prevIdsJSON) {
+                // Список категорий изменился — загружаем товары
+                loadProducts();
+            }
+            
+            // Обновляем последнее состояние
+            lastSelectedCategoryIds = [...selectedCategoryIds];
+            dropdown.style.display = 'none';
+        }
     }
 });
 
@@ -443,9 +458,7 @@ function toggleCategoryCheckbox(checkbox) {
     updateSelectedCount();
     updateDropdownText();
     updateCheckboxes();
-    
-    // Загружаем товары с небольшой задержкой (debounce)
-    setTimeout(loadProducts, 300);
+    // Обновление товаров происходит при закрытии dropdown
 }
 
 // Добавляем категорию и все её дочерние в выбранные
@@ -602,7 +615,7 @@ function selectAllCategories() {
     updateCheckboxes();
     updateSelectedCount();
     updateDropdownText();
-    setTimeout(loadProducts, 300);
+    // Обновление товаров происходит при закрытии dropdown
 }
 
 // Снять все категории
@@ -611,7 +624,7 @@ function deselectAllCategories() {
     updateCheckboxes();
     updateSelectedCount();
     updateDropdownText();
-    setTimeout(loadProducts, 300);
+    // Обновление товаров происходит при закрытии dropdown
 }
 
 // Обновление счетчика выбранных категорий
@@ -695,10 +708,14 @@ function applyCategoryFilter() {
 }
 
 async function loadProducts() {
-    const storeCode = document.getElementById('storeCode').value;
-    const category = document.getElementById('categoryFilter').value;
-    const search = document.getElementById('searchFilter').value;
-    const sort = document.getElementById('sortFilter').value;
+    const storeCodeEl = document.getElementById('storeCode');
+    const storeCode = storeCodeEl ? storeCodeEl.value : '';
+    const categoryEl = document.getElementById('categoryFilter');
+    const category = categoryEl ? categoryEl.value : '';
+    const searchEl = document.getElementById('searchFilter');
+    const search = searchEl ? searchEl.value : '';
+    const sortEl = document.getElementById('sortFilter');
+    const sort = sortEl ? sortEl.value : 'name';
 
     // Получаем выбранные магазины для сравнения
     const selectedStores = getSelectedStores();
@@ -708,11 +725,12 @@ async function loadProducts() {
 
     if (!activeStoreCode) {
         const listDiv = document.getElementById('products-list');
-        listDiv.innerHTML = '<p style="color: #666;">Выберите магазины для сравнения или укажите код магазина</p>';
+        if (listDiv) listDiv.innerHTML = '<p style="color: #666;">Выберите магазины для сравнения или укажите код магазина</p>';
         return;
     }
 
     const listDiv = document.getElementById('products-list');
+    if (!listDiv) return;
     listDiv.innerHTML = '<p style="color: #666;">Загрузка...</p>';
 
 try {
@@ -882,13 +900,14 @@ async function loadCategories() {
     const selectedStores = getSelectedStores();
     if (selectedStores.length === 0) return;
     
-    const storeCode = selectedStores[0]; // Используем первый выбранный магазин
+    const storeCode = selectedStores[0];
 
     try {
         const response = await fetch(`/api/categories?store_code=${encodeURIComponent(storeCode)}`);
         const categories = await response.json();
 
         const select = document.getElementById('categoryFilter');
+        if (!select) return;
         select.innerHTML = '<option value="">Все категории</option>';
         categories.forEach(cat => {
             select.innerHTML += `<option value="${cat.id}">${cat.name} (${cat.product_count || 0})</option>`;
@@ -1355,6 +1374,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Инициализация переменных для отслеживания изменений после загрузки категорий
+document.addEventListener('DOMContentLoaded', () => {
+    // Дожидаемся загрузки категорий
+    setTimeout(() => {
+        if (typeof loadCategoryTree === 'function') {
+            loadCategoryTree().then(() => {
+                lastSelectedCategoryIds = [...selectedCategoryIds];
+                const savingsFilterEl = document.getElementById('savingsFilter');
+                lastSavingsValue = savingsFilterEl ? savingsFilterEl.value : '';
+            });
+        }
+    }, 100);
+});
+
 // Поиск первого магазина с товарами
 async function findFirstStoreWithProducts(storeCodes) {
     for (const code of storeCodes) {
@@ -1414,9 +1447,12 @@ async function loadProductStats() {
 
 // Улучшенная функция loadProducts с поддержкой новых фильтров
 async function loadProductsEnhanced() {
-    const category = document.getElementById('categoryFilter').value;
-    const search = document.getElementById('searchFilter').value;
-    const sort = document.getElementById('sortFilter').value;
+    const categoryEl = document.getElementById('categoryFilter');
+    const category = categoryEl ? categoryEl.value : '';
+    const searchEl = document.getElementById('searchFilter');
+    const search = searchEl ? searchEl.value : '';
+    const sortEl = document.getElementById('sortFilter');
+    const sort = sortEl ? sortEl.value : 'name';
     const stockFilter = document.getElementById('stockFilter')?.value || '';
     const promoFilter = document.getElementById('promoFilter')?.value || '';
     const minPrice = document.getElementById('minPrice')?.value || '';
@@ -1427,11 +1463,12 @@ async function loadProductsEnhanced() {
 
     if (selectedStores.length === 0) {
         const listDiv = document.getElementById('products-list');
-        listDiv.innerHTML = '<p style="color: #666;">Выберите магазины для сравнения</p>';
+        if (listDiv) listDiv.innerHTML = '<p style="color: #666;">Выберите магазины для сравнения</p>';
         return;
     }
 
     const listDiv = document.getElementById('products-list');
+    if (!listDiv) return;
     listDiv.innerHTML = '<p style="color: #666;">Загрузка...</p>';
 
     try {
@@ -1901,7 +1938,7 @@ function renderSimpleList(products, selectedStores, activeStoreCode, otherStoreP
     listDiv.innerHTML = html;
 }
 
-// Переключение родительской категории
+// Переключение родительской категории (только UI, без загрузки товаров)
 function toggleParentCategory(id) {
     const el = document.getElementById('parent-' + id);
     const arrow = el.previousElementSibling.querySelector('.parent-arrow');
@@ -1914,7 +1951,7 @@ function toggleParentCategory(id) {
     }
 }
 
-// Переключение дочерней категории
+// Переключение дочерней категории (только UI, без загрузки товаров)
 function toggleChildCategory(id) {
     const el = document.getElementById('child-' + id);
     const arrow = el.previousElementSibling.querySelector('.child-arrow');
@@ -1925,6 +1962,41 @@ function toggleChildCategory(id) {
         el.style.display = 'none';
         arrow.style.transform = 'rotate(0deg)';
     }
+}
+
+// Состояние для отслеживания, развёрнуты ли все категории
+let allCategoriesExpanded = false;
+// Список раскрытых категорий для восстановления после обновления
+let expandedCategories = [];
+
+// Функция для сбора списка раскрытых категорий
+function getExpandedCategories() {
+    const expanded = [];
+    document.querySelectorAll('.parent-content').forEach(el => {
+        if (el.style.display === 'block') {
+            expanded.push(el.id);
+        }
+    });
+    document.querySelectorAll('.child-content').forEach(el => {
+        if (el.style.display === 'block') {
+            expanded.push(el.id);
+        }
+    });
+    return expanded;
+}
+
+// Функция для восстановления раскрытых категорий
+function restoreExpandedCategories(expandedList) {
+    expandedList.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.display = 'block';
+            const arrow = el.previousElementSibling.querySelector('.parent-arrow, .child-arrow');
+            if (arrow) {
+                arrow.style.transform = 'rotate(90deg)';
+            }
+        }
+    });
 }
 
 // Развернуть/свернуть все
@@ -1992,9 +2064,6 @@ function getSavingsFontSize(savingsPercent) {
     const fontSizeIncrease = Math.floor(savingsPercent / 10);
     return `${fontSizeIncrease}px`;
 }
-
-// Состояние для отслеживания, развёрнуты ли все категории
-let allCategoriesExpanded = false;
 
 // Переключение состояния всех категорий
 function toggleAllCategoriesState() {
@@ -2066,17 +2135,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedSavings = localStorage.getItem('savingsFilter');
         if (savedSavings) {
             savingsFilterEl.value = savedSavings;
+            lastSavingsValue = savedSavings;
         }
         
         savingsFilterEl.addEventListener('change', () => {
+            // Проверяем, изменилось ли значение
+            if (savingsFilterEl.value === lastSavingsValue) {
+                return; // Значение не изменилось - не обновляем товары
+            }
+            
             // Сохраняем выбранный процент в localStorage
+            lastSavingsValue = savingsFilterEl.value;
             localStorage.setItem('savingsFilter', savingsFilterEl.value);
+            
+            // Сохраняем текущее состояние раскрытия перед обновлением
+            expandedCategories = getExpandedCategories();
+            
             loadProducts();
-            // Раскрываем все категории если выбран процент, иначе сворачиваем
-            if (savingsFilterEl.value !== '') {
-                setTimeout(expandAllCategories, 1000);
-            } else {
-                setTimeout(collapseAllButFirst, 1000);
+            
+            // Восстанавливаем состояние раскрытия после загрузки товаров
+            if (expandedCategories.length > 0) {
+                setTimeout(() => restoreExpandedCategories(expandedCategories), 1000);
             }
         });
     }
@@ -2100,14 +2179,18 @@ document.addEventListener('DOMContentLoaded', () => {
            savingsFilterEl.value = savedSavings;
        }
        
-       // Загружаем состояние фильтров категорий
-       loadFilterState();
-       
-       // Загружаем дерево категорий для отображения количества выбранных
-       // и обновляем текст dropdown после загрузки
-       loadCategoryTree().then(() => {
-           updateDropdownText();
-       });
+// Загружаем состояние фильтров категорий
+        loadFilterState();
+        
+        // Инициализируем переменные для отслеживания изменений
+        lastSelectedCategoryIds = [...selectedCategoryIds];
+        lastSavingsValue = savingsFilterEl ? savingsFilterEl.value : '';
+        
+        // Загружаем дерево категорий для отображения количества выбранных
+        // и обновляем текст dropdown после загрузки
+        loadCategoryTree().then(() => {
+            updateDropdownText();
+        });
        
 // Загружаем товары при загрузке страницы если есть выбранные магазины или категории
         const selectedStores = getSelectedStores();
