@@ -269,7 +269,7 @@
         <div style="display: flex; gap: 16px; align-items: center;">
             <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
                 <input type="checkbox" id="select-all" onchange="toggleSelectAll(this.checked)">
-                <strong>Выбрать все</strong>
+                <strong id="select-all-text">Выбрать все</strong>
             </label>
             <span id="selected-count" style="color: #666; font-size: 14px; margin-left: auto;">Выбрано: 0 из 0</span>
         </div>
@@ -585,6 +585,8 @@ function toggleChildren(categoryId) {
 function toggleSelectAll(checked) {
     selectedCategories.clear();
     
+    const selectAllText = document.getElementById('select-all-text');
+    
     if (checked) {
         function addAll(categories) {
             categories.forEach(cat => {
@@ -593,6 +595,9 @@ function toggleSelectAll(checked) {
             });
         }
         addAll(categoriesData);
+        selectAllText.textContent = 'Снять все';
+    } else {
+        selectAllText.textContent = 'Выбрать все';
     }
     
     renderTree();
@@ -605,15 +610,20 @@ function updateSelectedCount() {
     document.getElementById('selected-count').textContent = `Выбрано: ${count} из ${total}`;
     
     const selectAllCheckbox = document.getElementById('select-all');
+    const selectAllText = document.getElementById('select-all-text');
+    
     if (count === 0) {
         selectAllCheckbox.checked = false;
         selectAllCheckbox.indeterminate = false;
+        selectAllText.textContent = 'Выбрать все';
     } else if (count === total) {
         selectAllCheckbox.checked = true;
         selectAllCheckbox.indeterminate = false;
+        selectAllText.textContent = 'Снять все';
     } else {
         selectAllCheckbox.checked = false;
         selectAllCheckbox.indeterminate = true;
+        selectAllText.textContent = 'Выбрать все';
     }
 }
 

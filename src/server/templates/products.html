@@ -331,6 +331,27 @@
     </div>
 </div>
 
+<!-- Кнопка прокрутки наверх -->
+<button id="scrollToTopBtn" onclick="scrollToTop()" style="
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #6f42c1;
+    color: white;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 999;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+">▲</button>
+
 <script>
 // Маппинг числовых кодов типов магазинов на API коды
 const SHOP_TYPE_TO_API_CODE = {
@@ -413,22 +434,36 @@ function renderCategoryTree(categories, parentId = null) {
     const container = document.getElementById('categoryTree');
     let html = '';
     
+    // Функция для подсчёта общего количества товаров в категории и её детях
+    function getTotalProductCount(cat) {
+        let count = cat.product_count || 0;
+        if (cat.children) {
+            cat.children.forEach(child => {
+                count += getTotalProductCount(child);
+            });
+        }
+        return count;
+    }
+    
     function renderNode(category, depth = 0) {
         const indent = depth * 20;
         const hasChildren = category.children && category.children.length > 0;
         const isChecked = selectedCategoryIds.includes(category.id);
         const trackedClass = category.is_tracked ? 'category-tracked' : '';
         
+        // Используем общее количество для категорий с детьми
+        const totalCount = getTotalProductCount(category);
+        
         html += `
             <div class="category-item" style="margin-left: ${indent}px;">
                 <input type="checkbox" id="cat-${category.id}" value="${category.id}" 
                        ${isChecked ? 'checked' : ''} 
                        onchange="toggleCategoryCheckbox(this)">
-<label for="cat-${category.id}" class="category-label ${trackedClass}" 
+                <label for="cat-${category.id}" class="category-label ${trackedClass}" 
                        title="${category.is_tracked ? 'Отслеживается' : 'Не отслеживается'}">
-                     ${escapeHtml(category.name)}
-                     ${category.product_count ? ` (${category.product_count})` : ''}
-                   </label>
+                      ${escapeHtml(category.name)}
+                      ${totalCount > 0 ? ` (${totalCount})` : ''}
+                    </label>
             </div>
         `;
         
@@ -994,6 +1029,23 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+
+// Прокрутка наверх
+function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Показ/скрытие кнопки прокрутки наверх
+window.addEventListener('scroll', function() {
+    const btn = document.getElementById('scrollToTopBtn');
+    if (btn) {
+        if (window.scrollY > 200) {
+            btn.style.display = 'block';
+        } else {
+            btn.style.display = 'none';
+        }
+    }
+});
 
 async function compareInStores(productId, currentStoreCode, productName) {
     const modal = document.getElementById('compareModal');
